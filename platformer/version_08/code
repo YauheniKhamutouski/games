@@ -1,0 +1,284 @@
+import pygame
+import sys
+
+# Инициализация Pygame
+pygame.init()
+
+# Константы экрана
+WIDTH, HEIGHT = 800, 600
+FPS = 60
+
+# Цвета
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+GREEN = (0, 255, 0)
+LIGHT_BLUE = (173, 216, 230)  # Фон
+RED = (255, 0, 0)  # Цвет лавы
+GOLD = (255, 223, 0)  # Цвет двери
+ENEMY_COLOR = (255, 0, 255)  # Цвет противников
+HIGHLIGHT_COLOR = (173, 216, 230)  # Цвет выделения
+
+# Параметры игрока
+PLAYER_WIDTH = 30
+PLAYER_HEIGHT = 40
+PLAYER_COLOR = (0, 0, 255)
+PLAYER_GRAVITY = 0.8
+PLAYER_JUMP_STRENGTH = 15
+PLAYER_MOVE_SPEED = 5
+
+# Параметры платформы
+PLATFORM_WIDTH = 100
+PLATFORM_HEIGHT = 15
+PLATFORM_COLOR = GREEN
+
+# Параметры лавы
+LAVA_HEIGHT = 20
+
+# Параметры двери
+DOOR_WIDTH = 20
+DOOR_HEIGHT = 40
+
+# Параметры противников
+ENEMY_SIZE = 30
+ENEMY_SPEED = 3
+
+# Настройка экрана
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Платформер")
+clock = pygame.time.Clock()
+
+# Главное меню
+def show_main_menu(selected_option):
+    screen.fill(BLACK)
+    font = pygame.font.SysFont(None, 74)
+
+    options = ["Начало игры", "Об игре", "Выход"]
+    for i, option in enumerate(options):
+        if i == selected_option:
+            color = HIGHLIGHT_COLOR
+        else:
+            color = WHITE
+        
+        text = font.render(option, True, color)
+        screen.blit(text, (WIDTH // 2 - text.get_width() // 2, HEIGHT // 2 - text.get_height() // 2 + i * 70))
+    
+    pygame.display.flip()
+
+def show_about_screen():
+    screen.fill(BLACK)
+    font = pygame.font.SysFont(None, 74)
+    text = font.render("Игра Квадраты", True, WHITE)
+    screen.blit(text, (WIDTH // 2 - text.get_width() // 2, HEIGHT // 2 - text.get_height() // 2))
+    pygame.display.flip()
+    pygame.time.wait(5000)  # Показать экран 5 секунд
+
+def show_game_over_screen():
+    screen.fill(BLACK)
+    font = pygame.font.SysFont(None, 74)
+    text = font.render("Конец игры", True, WHITE)
+    screen.blit(text, (WIDTH // 2 - text.get_width() // 2, HEIGHT // 2 - text.get_height() // 2))
+    pygame.display.flip()
+    pygame.time.wait(2000)  # Показать экран 2 секунды
+
+def show_victory_screen():
+    screen.fill(BLACK)
+    font = pygame.font.SysFont(None, 74)
+    text = font.render("Победа!", True, WHITE)
+    screen.blit(text, (WIDTH // 2 - text.get_width() // 2, HEIGHT // 2 - text.get_height() // 2))
+    pygame.display.flip()
+    pygame.time.wait(2000)  # Показать экран 2 секунды
+
+class Player(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = pygame.Surface((PLAYER_WIDTH, PLAYER_HEIGHT))
+        self.image.fill(PLAYER_COLOR)
+        self.rect = self.image.get_rect()
+        self.rect.center = (WIDTH // 2, HEIGHT - 120)
+        self.velocity_y = 0
+        self.is_jumping = False
+
+    def update(self):
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]:
+            self.rect.x -= PLAYER_MOVE_SPEED
+        if keys[pygame.K_RIGHT]:
+            self.rect.x += PLAYER_MOVE_SPEED
+
+        self.velocity_y += PLAYER_GRAVITY
+        self.rect.y += self.velocity_y
+
+        self.check_collision()
+
+        if self.rect.left < 0:
+            self.rect.left = 0
+        if self.rect.right > WIDTH:
+            self.rect.right = WIDTH
+
+        if pygame.sprite.spritecollideany(self, lava_group):
+            return 'game_over'
+
+        if pygame.sprite.spritecollideany(self, door_group):
+            return 'victory'
+
+        if pygame.sprite.spritecollideany(self, enemies):
+            return 'game_over'
+
+    def jump(self):
+        if not self.is_jumping:
+            self.velocity_y = -PLAYER_JUMP_STRENGTH
+            self.is_jumping = True
+
+    def check_collision(self):
+        hits = pygame.sprite.spritecollide(self, platforms, False)
+        if hits:
+            self.rect.bottom = hits[0].rect.top
+            self.velocity_y = 0
+            self.is_jumping = False
+
+class Platform(pygame.sprite.Sprite):
+    def __init__(self, x, y, width):
+        super().__init__()
+        self.image = pygame.Surface((width, PLATFORM_HEIGHT))
+        self.image.fill(PLATFORM_COLOR)
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+
+class Lava(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = pygame.Surface((WIDTH, LAVA_HEIGHT))
+        self.image.fill(RED)
+        self.rect = self.image.get_rect()
+        self.rect.x = 0
+        self.rect.y = HEIGHT - LAVA_HEIGHT
+
+class Door(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = pygame.Surface((DOOR_WIDTH, DOOR_HEIGHT))
+        self.image.fill(GOLD)
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+
+class Enemy(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = pygame.Surface((ENEMY_SIZE, ENEMY_SIZE))
+        self.image.fill(ENEMY_COLOR)
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+        self.direction = 1
+
+    def update(self):
+        self.rect.x += ENEMY_SPEED * self.direction
+        if self.rect.left <= 0 or self.rect.right >= WIDTH:
+            self.direction *= -1
+
+def main_game():
+    # Создание групп спрайтов
+    all_sprites = pygame.sprite.Group()
+    global platforms, lava_group, door_group, enemies
+    platforms = pygame.sprite.Group()
+    lava_group = pygame.sprite.Group()
+    door_group = pygame.sprite.Group()
+    enemies = pygame.sprite.Group()
+
+    # Создание игрока
+    player = Player()
+    all_sprites.add(player)
+
+    # Создание платформ
+    platform_data = [
+        (WIDTH // 2 - PLATFORM_WIDTH // 2, HEIGHT - 100, PLATFORM_WIDTH),
+        (150, 500, PLATFORM_WIDTH),
+        (350, 450, PLATFORM_WIDTH),
+        (550, 400, PLATFORM_WIDTH),
+        (250, 350, PLATFORM_WIDTH),
+        (650, 300, PLATFORM_WIDTH),
+        (50, 250, PLATFORM_WIDTH),
+        (350, 200, PLATFORM_WIDTH),
+        (150, 150, PLATFORM_WIDTH),
+        (550, 100, PLATFORM_WIDTH)
+    ]
+
+    for x, y, width in platform_data:
+        platform = Platform(x, y, width)
+        platforms.add(platform)
+        all_sprites.add(platform)
+
+    # Создание лавы
+    lava = Lava()
+    lava_group.add(lava)
+    all_sprites.add(lava)
+
+    # Создание двери
+    door = Door(550 + PLATFORM_WIDTH // 2 - DOOR_WIDTH // 2, 100 - DOOR_HEIGHT)
+    door_group.add(door)
+    all_sprites.add(door)
+
+    # Создание противников
+    enemy_positions = [
+        (100, 480),
+        (400, 350),
+        (600, 200)
+    ]
+
+    for pos in enemy_positions:
+        enemy = Enemy(pos[0], pos[1])
+        enemies.add(enemy)
+        all_sprites.add(enemy)
+
+    # Главный игровой цикл
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    player.jump()
+
+        result = player.update()
+        if result == 'game_over':
+            show_game_over_screen()
+            return  # Возврат в главное меню
+        elif result == 'victory':
+            show_victory_screen()
+            return  # Возврат в главное меню
+
+        all_sprites.update()
+
+        screen.fill(LIGHT_BLUE)
+        all_sprites.draw(screen)
+        pygame.display.flip()
+
+        clock.tick(FPS)
+
+def main():
+    selected_option = 0
+    while True:
+        show_main_menu(selected_option)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_DOWN:
+                    selected_option = (selected_option + 1) % 3
+                elif event.key == pygame.K_UP:
+                    selected_option = (selected_option - 1) % 3
+                elif event.key == pygame.K_RETURN:
+                    if selected_option == 0:  # Начало игры
+                        main_game()
+                    elif selected_option == 1:  # Об игре
+                        show_about_screen()
+                    elif selected_option == 2:  # Выход
+                        pygame.quit()
+                        sys.exit()
+
+if __name__ == "__main__":
+    main()
