@@ -1,0 +1,191 @@
+import pygame
+import sys
+
+# Инициализация Pygame
+pygame.init()
+
+# Константы экрана
+WIDTH, HEIGHT = 800, 600
+FPS = 60
+
+# Цвета
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+GREEN = (0, 255, 0)
+LIGHT_BLUE = (173, 216, 230)  # Фон
+RED = (255, 0, 0)  # Цвет лавы
+GOLD = (255, 223, 0)  # Цвет двери
+
+# Параметры игрока
+PLAYER_WIDTH = 50
+PLAYER_HEIGHT = 60
+PLAYER_COLOR = (0, 0, 255)
+PLAYER_GRAVITY = 0.8
+PLAYER_JUMP_STRENGTH = 15
+PLAYER_MOVE_SPEED = 5
+
+# Параметры платформы
+PLATFORM_WIDTH = 200
+PLATFORM_HEIGHT = 20
+PLATFORM_COLOR = GREEN
+
+# Параметры лавы
+LAVA_HEIGHT = 20  # Высота лавы
+
+# Параметры двери
+DOOR_WIDTH = 40
+DOOR_HEIGHT = 60
+
+# Настройка экрана
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Платформер")
+clock = pygame.time.Clock()
+
+class Player(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = pygame.Surface((PLAYER_WIDTH, PLAYER_HEIGHT))
+        self.image.fill(PLAYER_COLOR)
+        self.rect = self.image.get_rect()
+        # Установка начальной позиции игрока на нижнюю платформу
+        self.rect.center = (WIDTH // 2, HEIGHT - 120)
+        self.velocity_y = 0
+        self.is_jumping = False
+
+    def update(self):
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]:
+            self.rect.x -= PLAYER_MOVE_SPEED
+        if keys[pygame.K_RIGHT]:
+            self.rect.x += PLAYER_MOVE_SPEED
+
+        # Применение гравитации
+        self.velocity_y += PLAYER_GRAVITY
+        self.rect.y += self.velocity_y
+
+        # Проверка на столкновение с платформами
+        self.check_collision()
+
+        # Ограничение выхода за края экрана
+        if self.rect.left < 0:
+            self.rect.left = 0
+        if self.rect.right > WIDTH:
+            self.rect.right = WIDTH
+
+        # Проверка столкновения с лавой
+        if pygame.sprite.spritecollideany(self, lava_group):
+            game_over()
+
+        # Проверка достижения двери
+        if pygame.sprite.spritecollideany(self, door_group):
+            victory()
+
+    def jump(self):
+        if not self.is_jumping:
+            self.velocity_y = -PLAYER_JUMP_STRENGTH
+            self.is_jumping = True
+
+    def check_collision(self):
+        hits = pygame.sprite.spritecollide(self, platforms, False)
+        if hits:
+            self.rect.bottom = hits[0].rect.top
+            self.velocity_y = 0
+            self.is_jumping = False
+
+class Platform(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = pygame.Surface((PLATFORM_WIDTH, PLATFORM_HEIGHT))
+        self.image.fill(PLATFORM_COLOR)
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+
+class Lava(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = pygame.Surface((WIDTH, LAVA_HEIGHT))
+        self.image.fill(RED)
+        self.rect = self.image.get_rect()
+        self.rect.x = 0
+        self.rect.y = HEIGHT - LAVA_HEIGHT
+
+class Door(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = pygame.Surface((DOOR_WIDTH, DOOR_HEIGHT))
+        self.image.fill(GOLD)
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+
+def game_over():
+    screen.fill(BLACK)
+    font = pygame.font.SysFont(None, 74)
+    text = font.render("Конец игры", True, WHITE)
+    screen.blit(text, (WIDTH // 2 - text.get_width() // 2, HEIGHT // 2 - text.get_height() // 2))
+    pygame.display.flip()
+    pygame.time.wait(2000)
+    pygame.quit()
+    sys.exit()
+
+def victory():
+    screen.fill(BLACK)
+    font = pygame.font.SysFont(None, 74)
+    text = font.render("Победа!", True, WHITE)
+    screen.blit(text, (WIDTH // 2 - text.get_width() // 2, HEIGHT // 2 - text.get_height() // 2))
+    pygame.display.flip()
+    pygame.time.wait(2000)
+    pygame.quit()
+    sys.exit()
+
+# Создание групп спрайтов
+all_sprites = pygame.sprite.Group()
+platforms = pygame.sprite.Group()
+lava_group = pygame.sprite.Group()
+door_group = pygame.sprite.Group()
+
+# Создание игрока
+player = Player()
+all_sprites.add(player)
+
+# Создание платформ
+platform1 = Platform(WIDTH // 2 - PLATFORM_WIDTH // 2, HEIGHT - 100)  # нижняя платформа
+platform2 = Platform(150, 400)
+platform3 = Platform(400, 300)
+platform4 = Platform(600, 200)
+platform5 = Platform(200, 150)  # верхняя платформа
+
+platforms.add(platform1, platform2, platform3, platform4, platform5)
+all_sprites.add(platform1, platform2, platform3, platform4, platform5)
+
+# Создание лавы
+lava = Lava()
+lava_group.add(lava)
+all_sprites.add(lava)
+
+# Создание двери на верхней платформе
+door = Door(platform5.rect.x + PLATFORM_WIDTH // 2 - DOOR_WIDTH // 2, platform5.rect.y - DOOR_HEIGHT)
+door_group.add(door)
+all_sprites.add(door)
+
+# Главный игровой цикл
+while True:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                player.jump()
+
+    # Обновление всех спрайтов
+    all_sprites.update()
+
+    # Рендеринг
+    screen.fill(LIGHT_BLUE)
+    all_sprites.draw(screen)
+    pygame.display.flip()
+
+    # Ограничение FPS
+    clock.tick(FPS)
