@@ -1,0 +1,117 @@
+import pygame
+import sys
+
+# Инициализация Pygame
+pygame.init()
+
+# Константы экрана
+WIDTH, HEIGHT = 800, 600
+FPS = 60
+
+# Цвета
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+GREEN = (0, 255, 0)
+
+# Параметры игрока
+PLAYER_WIDTH = 50
+PLAYER_HEIGHT = 60
+PLAYER_COLOR = (0, 0, 255)
+PLAYER_GRAVITY = 0.8
+PLAYER_JUMP_STRENGTH = 15
+PLAYER_MOVE_SPEED = 5
+
+# Параметры платформы
+PLATFORM_WIDTH = 200
+PLATFORM_HEIGHT = 20
+PLATFORM_COLOR = GREEN
+
+# Настройка экрана
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Платформер")
+clock = pygame.time.Clock()
+
+class Player(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = pygame.Surface((PLAYER_WIDTH, PLAYER_HEIGHT))
+        self.image.fill(PLAYER_COLOR)
+        self.rect = self.image.get_rect()
+        self.rect.center = (WIDTH // 2, HEIGHT // 2)
+        self.velocity_y = 0
+        self.is_jumping = False
+
+    def update(self):
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]:
+            self.rect.x -= PLAYER_MOVE_SPEED
+        if keys[pygame.K_RIGHT]:
+            self.rect.x += PLAYER_MOVE_SPEED
+
+        # Применение гравитации
+        self.velocity_y += PLAYER_GRAVITY
+        self.rect.y += self.velocity_y
+
+        # Проверка на столкновение с платформами
+        self.check_collision()
+
+        # Ограничение выхода за края экрана
+        if self.rect.left < 0:
+            self.rect.left = 0
+        if self.rect.right > WIDTH:
+            self.rect.right = WIDTH
+
+    def jump(self):
+        if not self.is_jumping:
+            self.velocity_y = -PLAYER_JUMP_STRENGTH
+            self.is_jumping = True
+
+    def check_collision(self):
+        hits = pygame.sprite.spritecollide(self, platforms, False)
+        if hits:
+            self.rect.bottom = hits[0].rect.top
+            self.velocity_y = 0
+            self.is_jumping = False
+
+class Platform(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = pygame.Surface((PLATFORM_WIDTH, PLATFORM_HEIGHT))
+        self.image.fill(PLATFORM_COLOR)
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+
+# Создание групп спрайтов
+all_sprites = pygame.sprite.Group()
+platforms = pygame.sprite.Group()
+
+# Создание игрока
+player = Player()
+all_sprites.add(player)
+
+# Создание платформ
+platform = Platform(WIDTH // 2 - PLATFORM_WIDTH // 2, HEIGHT - 100)
+platforms.add(platform)
+all_sprites.add(platform)
+
+# Главный игровой цикл
+while True:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                player.jump()
+
+    # Обновление всех спрайтов
+    all_sprites.update()
+
+    # Рендеринг
+    screen.fill(WHITE)
+    all_sprites.draw(screen)
+    pygame.display.flip()
+
+    # Ограничение FPS
+    clock.tick(FPS)
