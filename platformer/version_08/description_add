@@ -1,0 +1,689 @@
+'''
+Добавим возможность переключаться между опциями меню стрелками вверх и вниз, а также 
+подтверждать выбор клавишей Enter. Выделение выбранной опции будет отображаться голубым цветом.
+
+Меню:
+
+Начало игры
+Об игре
+Выход
+
+Переключение стрелками вверх и вниз.
+Выделение голубым цветом выбранный пункт меню.
+Подтверждение клавишей Enter выбранного пункта меню.
+
+После проигрыша выход в главное меню.
+'''
+
+# Обновленный код с меню
+
+import pygame
+import sys
+
+# Инициализация Pygame
+pygame.init()
+
+# Константы экрана
+WIDTH, HEIGHT = 800, 600
+FPS = 60
+
+# Цвета
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+GREEN = (0, 255, 0)
+LIGHT_BLUE = (173, 216, 230)  # Фон
+RED = (255, 0, 0)  # Цвет лавы
+GOLD = (255, 223, 0)  # Цвет двери
+ENEMY_COLOR = (255, 0, 255)  # Цвет противников
+HIGHLIGHT_COLOR = (173, 216, 230)  # Цвет выделения
+
+# Параметры игрока
+PLAYER_WIDTH = 30
+PLAYER_HEIGHT = 40
+PLAYER_COLOR = (0, 0, 255)
+PLAYER_GRAVITY = 0.8
+PLAYER_JUMP_STRENGTH = 15
+PLAYER_MOVE_SPEED = 5
+
+# Параметры платформы
+PLATFORM_WIDTH = 100
+PLATFORM_HEIGHT = 15
+PLATFORM_COLOR = GREEN
+
+# Параметры лавы
+LAVA_HEIGHT = 20
+
+# Параметры двери
+DOOR_WIDTH = 20
+DOOR_HEIGHT = 40
+
+# Параметры противников
+ENEMY_SIZE = 30
+ENEMY_SPEED = 3
+
+# Настройка экрана
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Платформер")
+clock = pygame.time.Clock()
+
+# Главное меню
+def show_main_menu(selected_option):
+    screen.fill(BLACK)
+    font = pygame.font.SysFont(None, 74)
+
+    options = ["Начало игры", "Об игре", "Выход"]
+    for i, option in enumerate(options):
+        if i == selected_option:
+            color = HIGHLIGHT_COLOR
+        else:
+            color = WHITE
+        
+        text = font.render(option, True, color)
+        screen.blit(text, (WIDTH // 2 - text.get_width() // 2, HEIGHT // 2 - text.get_height() // 2 + i * 70))
+    
+    pygame.display.flip()
+
+def show_about_screen():
+    screen.fill(BLACK)
+    font = pygame.font.SysFont(None, 74)
+    text = font.render("Игра Квадраты", True, WHITE)
+    screen.blit(text, (WIDTH // 2 - text.get_width() // 2, HEIGHT // 2 - text.get_height() // 2))
+    pygame.display.flip()
+    pygame.time.wait(5000)  # Показать экран 5 секунд
+
+def show_game_over_screen():
+    screen.fill(BLACK)
+    font = pygame.font.SysFont(None, 74)
+    text = font.render("Конец игры", True, WHITE)
+    screen.blit(text, (WIDTH // 2 - text.get_width() // 2, HEIGHT // 2 - text.get_height() // 2))
+    pygame.display.flip()
+    pygame.time.wait(2000)  # Показать экран 2 секунды
+
+def show_victory_screen():
+    screen.fill(BLACK)
+    font = pygame.font.SysFont(None, 74)
+    text = font.render("Победа!", True, WHITE)
+    screen.blit(text, (WIDTH // 2 - text.get_width() // 2, HEIGHT // 2 - text.get_height() // 2))
+    pygame.display.flip()
+    pygame.time.wait(2000)  # Показать экран 2 секунды
+
+class Player(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = pygame.Surface((PLAYER_WIDTH, PLAYER_HEIGHT))
+        self.image.fill(PLAYER_COLOR)
+        self.rect = self.image.get_rect()
+        self.rect.center = (WIDTH // 2, HEIGHT - 120)
+        self.velocity_y = 0
+        self.is_jumping = False
+
+    def update(self):
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]:
+            self.rect.x -= PLAYER_MOVE_SPEED
+        if keys[pygame.K_RIGHT]:
+            self.rect.x += PLAYER_MOVE_SPEED
+
+        self.velocity_y += PLAYER_GRAVITY
+        self.rect.y += self.velocity_y
+
+        self.check_collision()
+
+        if self.rect.left < 0:
+            self.rect.left = 0
+        if self.rect.right > WIDTH:
+            self.rect.right = WIDTH
+
+        if pygame.sprite.spritecollideany(self, lava_group):
+            return 'game_over'
+
+        if pygame.sprite.spritecollideany(self, door_group):
+            return 'victory'
+
+        if pygame.sprite.spritecollideany(self, enemies):
+            return 'game_over'
+
+    def jump(self):
+        if not self.is_jumping:
+            self.velocity_y = -PLAYER_JUMP_STRENGTH
+            self.is_jumping = True
+
+    def check_collision(self):
+        hits = pygame.sprite.spritecollide(self, platforms, False)
+        if hits:
+            self.rect.bottom = hits[0].rect.top
+            self.velocity_y = 0
+            self.is_jumping = False
+
+class Platform(pygame.sprite.Sprite):
+    def __init__(self, x, y, width):
+        super().__init__()
+        self.image = pygame.Surface((width, PLATFORM_HEIGHT))
+        self.image.fill(PLATFORM_COLOR)
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+
+class Lava(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = pygame.Surface((WIDTH, LAVA_HEIGHT))
+        self.image.fill(RED)
+        self.rect = self.image.get_rect()
+        self.rect.x = 0
+        self.rect.y = HEIGHT - LAVA_HEIGHT
+
+class Door(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = pygame.Surface((DOOR_WIDTH, DOOR_HEIGHT))
+        self.image.fill(GOLD)
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+
+class Enemy(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = pygame.Surface((ENEMY_SIZE, ENEMY_SIZE))
+        self.image.fill(ENEMY_COLOR)
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+        self.direction = 1
+
+    def update(self):
+        self.rect.x += ENEMY_SPEED * self.direction
+        if self.rect.left <= 0 or self.rect.right >= WIDTH:
+            self.direction *= -1
+
+def main_game():
+    # Создание групп спрайтов
+    all_sprites = pygame.sprite.Group()
+    global platforms, lava_group, door_group, enemies
+    platforms = pygame.sprite.Group()
+    lava_group = pygame.sprite.Group()
+    door_group = pygame.sprite.Group()
+    enemies = pygame.sprite.Group()
+
+    # Создание игрока
+    player = Player()
+    all_sprites.add(player)
+
+    # Создание платформ
+    platform_data = [
+        (WIDTH // 2 - PLATFORM_WIDTH // 2, HEIGHT - 100, PLATFORM_WIDTH),
+        (150, 500, PLATFORM_WIDTH),
+        (350, 450, PLATFORM_WIDTH),
+        (550, 400, PLATFORM_WIDTH),
+        (250, 350, PLATFORM_WIDTH),
+        (650, 300, PLATFORM_WIDTH),
+        (50, 250, PLATFORM_WIDTH),
+        (350, 200, PLATFORM_WIDTH),
+        (150, 150, PLATFORM_WIDTH),
+        (550, 100, PLATFORM_WIDTH)
+    ]
+
+    for x, y, width in platform_data:
+        platform = Platform(x, y, width)
+        platforms.add(platform)
+        all_sprites.add(platform)
+
+    # Создание лавы
+    lava = Lava()
+    lava_group.add(lava)
+    all_sprites.add(lava)
+
+    # Создание двери
+    door = Door(550 + PLATFORM_WIDTH // 2 - DOOR_WIDTH // 2, 100 - DOOR_HEIGHT)
+    door_group.add(door)
+    all_sprites.add(door)
+
+    # Создание противников
+    enemy_positions = [
+        (100, 480),
+        (400, 350),
+        (600, 200)
+    ]
+
+    for pos in enemy_positions:
+        enemy = Enemy(pos[0], pos[1])
+        enemies.add(enemy)
+        all_sprites.add(enemy)
+
+    # Главный игровой цикл
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    player.jump()
+
+        result = player.update()
+        if result == 'game_over':
+            show_game_over_screen()
+            return  # Возврат в главное меню
+        elif result == 'victory':
+            show_victory_screen()
+            return  # Возврат в главное меню
+
+        all_sprites.update()
+
+        screen.fill(LIGHT_BLUE)
+        all_sprites.draw(screen)
+        pygame.display.flip()
+
+        clock.tick(FPS)
+
+def main():
+    selected_option = 0
+    while True:
+        show_main_menu(selected_option)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_DOWN:
+                    selected_option = (selected_option + 1) % 3
+                elif event.key == pygame.K_UP:
+                    selected_option = (selected_option - 1) % 3
+                elif event.key == pygame.K_RETURN:
+                    if selected_option == 0:  # Начало игры
+                        main_game()
+                    elif selected_option == 1:  # Об игре
+                        show_about_screen()
+                    elif selected_option == 2:  # Выход
+                        pygame.quit()
+                        sys.exit()
+
+if __name__ == "__main__":
+    main()
+
+# Дополнительное целое описание всего кода игры
+
+'''
+Давайте подробно разберем каждую часть кода, чтобы объяснить, что делает каждая строчка и каждая команда.
+
+### Импорт библиотек и инициализация
+
+```python
+import pygame
+import sys
+```
+- `import pygame`: Импортирует библиотеку Pygame, используемую для создания графики и обработки событий.
+- `import sys`: Импортирует модуль `sys` для управления параметрами системы, в частности, для выхода из программы.
+
+```python
+pygame.init()
+```
+- Инициализирует все модули Pygame. Обязательно перед использованием других функций и методов Pygame.
+
+### Настройка экрана и цветов
+
+```python
+WIDTH, HEIGHT = 800, 600
+FPS = 60
+```
+- Устанавливает ширину и высоту экрана в пикселях (800x600).
+- Устанавливает количество кадров в секунду (60 FPS).
+
+```python
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+GREEN = (0, 255, 0)
+LIGHT_BLUE = (173, 216, 230)
+RED = (255, 0, 0)
+GOLD = (255, 223, 0)
+ENEMY_COLOR = (255, 0, 255)
+HIGHLIGHT_COLOR = (173, 216, 230)
+```
+- Определяет цвета, используемые в игре, в формате RGB.
+
+```python
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Платформер")
+clock = pygame.time.Clock()
+```
+- `pygame.display.set_mode((WIDTH, HEIGHT))`: Создает окно игры с заданными размерами.
+- `pygame.display.set_caption("Платформер")`: Устанавливает заголовок окна игры.
+- `pygame.time.Clock()`: Создает объект для управления частотой обновления экрана (FPS).
+
+### Функции для отображения экранов
+
+```python
+def show_main_menu(selected_option):
+    screen.fill(BLACK)
+    font = pygame.font.SysFont(None, 74)
+```
+- `screen.fill(BLACK)`: Заполняет экран черным цветом.
+- `pygame.font.SysFont(None, 74)`: Создает объект шрифта с размером 74 пикселя и стандартным системным шрифтом.
+
+```python
+    options = ["Начало игры", "Об игре", "Выход"]
+    for i, option in enumerate(options):
+        if i == selected_option:
+            color = HIGHLIGHT_COLOR
+        else:
+            color = WHITE
+```
+- Определяет список опций меню.
+- Использует цикл `for` для перебора опций и выбора цвета для выделенной опции.
+
+```python
+        text = font.render(option, True, color)
+        screen.blit(text, (WIDTH // 2 - text.get_width() // 2, HEIGHT // 2 - text.get_height() // 2 + i * 70))
+    
+    pygame.display.flip()
+```
+- `font.render(option, True, color)`: Создает текст с выбранным цветом.
+- `screen.blit(text, (x, y))`: Рисует текст на экране в указанной позиции.
+- `pygame.display.flip()`: Обновляет экран для отображения изменений.
+
+```python
+def show_about_screen():
+    screen.fill(BLACK)
+    font = pygame.font.SysFont(None, 74)
+    text = font.render("Игра Квадраты", True, WHITE)
+    screen.blit(text, (WIDTH // 2 - text.get_width() // 2, HEIGHT // 2 - text.get_height() // 2))
+    pygame.display.flip()
+    pygame.time.wait(5000)
+```
+- Заполняет экран черным цветом.
+- Рисует текст "Игра Квадраты" в центре экрана белым цветом.
+- `pygame.time.wait(5000)`: Ждет 5 секунд, прежде чем вернуться в меню.
+
+```python
+def show_game_over_screen():
+    screen.fill(BLACK)
+    font = pygame.font.SysFont(None, 74)
+    text = font.render("Конец игры", True, WHITE)
+    screen.blit(text, (WIDTH // 2 - text.get_width() // 2, HEIGHT // 2 - text.get_height() // 2))
+    pygame.display.flip()
+    pygame.time.wait(2000)
+```
+- Рисует текст "Конец игры" и ждет 2 секунды перед возвратом в меню.
+
+```python
+def show_victory_screen():
+    screen.fill(BLACK)
+    font = pygame.font.SysFont(None, 74)
+    text = font.render("Победа!", True, WHITE)
+    screen.blit(text, (WIDTH // 2 - text.get_width() // 2, HEIGHT // 2 - text.get_height() // 2))
+    pygame.display.flip()
+    pygame.time.wait(2000)
+```
+- Рисует текст "Победа!" и ждет 2 секунды перед возвратом в меню.
+
+### Классы для объектов игры
+
+```python
+class Player(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = pygame.Surface((PLAYER_WIDTH, PLAYER_HEIGHT))
+        self.image.fill(PLAYER_COLOR)
+        self.rect = self.image.get_rect()
+        self.rect.center = (WIDTH // 2, HEIGHT - 120)
+        self.velocity_y = 0
+        self.is_jumping = False
+```
+- Определяет класс `Player`, унаследованный от `pygame.sprite.Sprite`.
+- Создает изображение игрока и устанавливает его начальные параметры (ширина, высота, цвет, позиция).
+
+```python
+    def update(self):
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]:
+            self.rect.x -= PLAYER_MOVE_SPEED
+        if keys[pygame.K_RIGHT]:
+            self.rect.x += PLAYER_MOVE_SPEED
+```
+- Обрабатывает нажатия клавиш для перемещения игрока влево и вправо.
+
+```python
+        self.velocity_y += PLAYER_GRAVITY
+        self.rect.y += self.velocity_y
+        self.check_collision()
+        
+        if self.rect.left < 0:
+            self.rect.left = 0
+        if self.rect.right > WIDTH:
+            self.rect.right = WIDTH
+```
+- Применяет гравитацию и обновляет вертикальное положение игрока.
+- Проверяет столкновения и ограничивает движение игрока в пределах экрана.
+
+```python
+        if pygame.sprite.spritecollideany(self, lava_group):
+            return 'game_over'
+        if pygame.sprite.spritecollideany(self, door_group):
+            return 'victory'
+        if pygame.sprite.spritecollideany(self, enemies):
+            return 'game_over'
+```
+- Проверяет столкновения с лавой, дверью и противниками. Возвращает результат в зависимости от столкновения.
+
+```python
+    def jump(self):
+        if not self.is_jumping:
+            self.velocity_y = -PLAYER_JUMP_STRENGTH
+            self.is_jumping = True
+```
+- Реализует прыжок игрока, если он не находится в прыжке.
+
+```python
+    def check_collision(self):
+        hits = pygame.sprite.spritecollide(self, platforms, False)
+        if hits:
+            self.rect.bottom = hits[0].rect.top
+            self.velocity_y = 0
+            self.is_jumping = False
+```
+- Проверяет столкновение с платформами и корректирует позицию и скорость игрока.
+
+```python
+class Platform(pygame.sprite.Sprite):
+    def __init__(self, x, y, width):
+        super().__init__()
+        self.image = pygame.Surface((width, PLATFORM_HEIGHT))
+        self.image.fill(PLATFORM_COLOR)
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+```
+- Определяет класс `Platform` для платформ. Инициализирует изображение и позицию платформы.
+
+```python
+class Lava(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = pygame.Surface((WIDTH, LAVA_HEIGHT))
+        self.image.fill(RED)
+        self.rect = self.image.get_rect()
+        self.rect.x = 0
+        self.rect.y = HEIGHT - LAVA_HEIGHT
+```
+- Определяет класс `Lava` для лавы. Создает изображение лавы и устанавливает его позицию.
+
+```python
+class Door(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = pygame.Surface((DOOR_WIDTH, DOOR_HEIGHT))
+        self.image.fill(GOLD)
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+```
+- Определяет класс `Door` для двери. Создает изображение двери и устанавливает его позицию.
+
+```python
+class Enemy(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = pygame.Surface((ENEMY_SIZE, ENEMY_SIZE))
+        self.image.fill(ENEMY_COLOR)
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+        self.direction = 1
+```
+- Определяет класс `Enemy` для противников. Создает изображение противника, устанавливает его позицию и начальное направление движения.
+
+```python
+    def update(self):
+        self.rect.x += ENEMY_SPEED * self.direction
+        if self.rect.left <= 0 or self.rect.right >=
+
+ WIDTH:
+            self.direction *= -1
+```
+- Обрабатывает горизонтальное движение противника и меняет направление при достижении границы экрана.
+
+### Главная функция игры
+
+```python
+def main_game():
+    all_sprites = pygame.sprite.Group()
+    global platforms, lava_group, door_group, enemies
+    platforms = pygame.sprite.Group()
+    lava_group = pygame.sprite.Group()
+    door_group = pygame.sprite.Group()
+    enemies = pygame.sprite.Group()
+```
+- Создает группы спрайтов для всех объектов, которые будут использоваться в игре.
+
+```python
+    player = Player()
+    all_sprites.add(player)
+```
+- Создает объект игрока и добавляет его в группу спрайтов.
+
+```python
+    platform_data = [
+        (WIDTH // 2 - PLATFORM_WIDTH // 2, HEIGHT - 100, PLATFORM_WIDTH),
+        (150, 500, PLATFORM_WIDTH),
+        (350, 450, PLATFORM_WIDTH),
+        (550, 400, PLATFORM_WIDTH),
+        (250, 350, PLATFORM_WIDTH),
+        (650, 300, PLATFORM_WIDTH),
+        (50, 250, PLATFORM_WIDTH),
+        (350, 200, PLATFORM_WIDTH),
+        (150, 150, PLATFORM_WIDTH),
+        (550, 100, PLATFORM_WIDTH)
+    ]
+```
+- Определяет данные для платформ (позиции и ширина).
+
+```python
+    for x, y, width in platform_data:
+        platform = Platform(x, y, width)
+        platforms.add(platform)
+        all_sprites.add(platform)
+```
+- Создает платформы по заданным данным и добавляет их в группы спрайтов.
+
+```python
+    lava = Lava()
+    lava_group.add(lava)
+    all_sprites.add(lava)
+```
+- Создает объект лавы и добавляет его в группы спрайтов.
+
+```python
+    door = Door(550 + PLATFORM_WIDTH // 2 - DOOR_WIDTH // 2, 100 - DOOR_HEIGHT)
+    door_group.add(door)
+    all_sprites.add(door)
+```
+- Создает объект двери и добавляет его в группы спрайтов.
+
+```python
+    enemy_positions = [
+        (100, 480),
+        (400, 350),
+        (600, 200)
+    ]
+```
+- Определяет позиции для противников.
+
+```python
+    for pos in enemy_positions:
+        enemy = Enemy(pos[0], pos[1])
+        enemies.add(enemy)
+        all_sprites.add(enemy)
+```
+- Создает противников по заданным позициям и добавляет их в группы спрайтов.
+
+```python
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    player.jump()
+```
+- Главный игровой цикл. Обрабатывает события, такие как закрытие окна и нажатие клавиш. Обрабатывает прыжок игрока.
+
+```python
+        result = player.update()
+        if result == 'game_over':
+            show_game_over_screen()
+            return
+        elif result == 'victory':
+            show_victory_screen()
+            return
+```
+- Обновляет состояние игрока и проверяет результаты (проигрыш или победа). Показывает соответствующий экран и возвращается в меню.
+
+```python
+        all_sprites.update()
+        screen.fill(LIGHT_BLUE)
+        all_sprites.draw(screen)
+        pygame.display.flip()
+        clock.tick(FPS)
+```
+- Обновляет состояние всех спрайтов, рисует их на экране, обновляет дисплей и устанавливает частоту обновления экрана.
+
+### Основная функция программы
+
+```python
+def main():
+    selected_option = 0
+    while True:
+        show_main_menu(selected_option)
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_DOWN:
+                    selected_option = (selected_option + 1) % 3
+                elif event.key == pygame.K_UP:
+                    selected_option = (selected_option - 1) % 3
+                elif event.key == pygame.K_RETURN:
+                    if selected_option == 0:
+                        main_game()
+                    elif selected_option == 1:
+                        show_about_screen()
+                    elif selected_option == 2:
+                        pygame.quit()
+                        sys.exit()
+```
+- Реализует меню, позволяющее переключаться между опциями с помощью стрелок и подтверждать выбор клавишей Enter. 
+В зависимости от выбранной опции вызывает соответствующую функцию (игру, экран "Об игре" или выход).
+
+```python
+if __name__ == "__main__":
+    main()
+```
+- Запускает основную функцию программы, если скрипт выполняется напрямую.
+
+Этот код охватывает создание простого платформера с меню и основными игровыми механиками.
+'''
+
+
