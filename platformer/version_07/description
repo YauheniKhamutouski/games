@@ -1,0 +1,355 @@
+'''
+Чтобы добавить в игру противников в виде летающих квадратов, нужно создать новый класс, который будет 
+представлять противников, и добавить их движение по горизонтали на каждом уровне.
+Также нужно будет добавить логику для проверки столкновений с противниками и окончания игры, 
+если игрок касается противника.
+'''
+
+# Обновленный код с противниками
+
+import pygame
+import sys
+import random
+
+# Инициализация Pygame
+pygame.init()
+
+# Константы экрана
+WIDTH, HEIGHT = 800, 600
+FPS = 60
+
+# Цвета
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+GREEN = (0, 255, 0)
+LIGHT_BLUE = (173, 216, 230)  # Фон
+RED = (255, 0, 0)  # Цвет лавы
+GOLD = (255, 223, 0)  # Цвет двери
+ENEMY_COLOR = (255, 0, 255)  # Цвет противников
+
+# Параметры игрока
+PLAYER_WIDTH = 30
+PLAYER_HEIGHT = 40
+PLAYER_COLOR = (0, 0, 255)
+PLAYER_GRAVITY = 0.8
+PLAYER_JUMP_STRENGTH = 15
+PLAYER_MOVE_SPEED = 5
+
+# Параметры платформы
+PLATFORM_WIDTH = 100  # уменьшенный размер платформ
+PLATFORM_HEIGHT = 15
+PLATFORM_COLOR = GREEN
+
+# Параметры лавы
+LAVA_HEIGHT = 20  # Высота лавы
+
+# Параметры двери
+DOOR_WIDTH = 20
+DOOR_HEIGHT = 40
+
+# Параметры противников
+ENEMY_SIZE = 30  # Размер противников
+ENEMY_SPEED = 3  # Скорость движения противников
+
+# Настройка экрана
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Платформер")
+clock = pygame.time.Clock()
+
+class Player(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = pygame.Surface((PLAYER_WIDTH, PLAYER_HEIGHT))
+        self.image.fill(PLAYER_COLOR)
+        self.rect = self.image.get_rect()
+        # Установка начальной позиции игрока на нижнюю платформу
+        self.rect.center = (WIDTH // 2, HEIGHT - 120)
+        self.velocity_y = 0
+        self.is_jumping = False
+
+    def update(self):
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]:
+            self.rect.x -= PLAYER_MOVE_SPEED
+        if keys[pygame.K_RIGHT]:
+            self.rect.x += PLAYER_MOVE_SPEED
+
+        # Применение гравитации
+        self.velocity_y += PLAYER_GRAVITY
+        self.rect.y += self.velocity_y
+
+        # Проверка на столкновение с платформами
+        self.check_collision()
+
+        # Ограничение выхода за края экрана
+        if self.rect.left < 0:
+            self.rect.left = 0
+        if self.rect.right > WIDTH:
+            self.rect.right = WIDTH
+
+        # Проверка столкновения с лавой
+        if pygame.sprite.spritecollideany(self, lava_group):
+            game_over()
+
+        # Проверка достижения двери
+        if pygame.sprite.spritecollideany(self, door_group):
+            victory()
+
+        # Проверка столкновения с противниками
+        if pygame.sprite.spritecollideany(self, enemies):
+            game_over()
+
+    def jump(self):
+        if not self.is_jumping:
+            self.velocity_y = -PLAYER_JUMP_STRENGTH
+            self.is_jumping = True
+
+    def check_collision(self):
+        hits = pygame.sprite.spritecollide(self, platforms, False)
+        if hits:
+            self.rect.bottom = hits[0].rect.top
+            self.velocity_y = 0
+            self.is_jumping = False
+
+class Platform(pygame.sprite.Sprite):
+    def __init__(self, x, y, width):
+        super().__init__()
+        self.image = pygame.Surface((width, PLATFORM_HEIGHT))
+        self.image.fill(PLATFORM_COLOR)
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+
+class Lava(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = pygame.Surface((WIDTH, LAVA_HEIGHT))
+        self.image.fill(RED)
+        self.rect = self.image.get_rect()
+        self.rect.x = 0
+        self.rect.y = HEIGHT - LAVA_HEIGHT
+
+class Door(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = pygame.Surface((DOOR_WIDTH, DOOR_HEIGHT))
+        self.image.fill(GOLD)
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+
+class Enemy(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = pygame.Surface((ENEMY_SIZE, ENEMY_SIZE))
+        self.image.fill(ENEMY_COLOR)
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+        self.direction = 1  # 1 для движения вправо, -1 для движения влево
+
+    def update(self):
+        # Движение противника по горизонтали
+        self.rect.x += ENEMY_SPEED * self.direction
+        if self.rect.left <= 0 or self.rect.right >= WIDTH:
+            self.direction *= -1  # Изменение направления движения при достижении границы
+
+def game_over():
+    screen.fill(BLACK)
+    font = pygame.font.SysFont(None, 74)
+    text = font.render("Конец игры", True, WHITE)
+    screen.blit(text, (WIDTH // 2 - text.get_width() // 2, HEIGHT // 2 - text.get_height() // 2))
+    pygame.display.flip()
+    pygame.time.wait(2000)
+    pygame.quit()
+    sys.exit()
+
+def victory():
+    screen.fill(BLACK)
+    font = pygame.font.SysFont(None, 74)
+    text = font.render("Победа!", True, WHITE)
+    screen.blit(text, (WIDTH // 2 - text.get_width() // 2, HEIGHT // 2 - text.get_height() // 2))
+    pygame.display.flip()
+    pygame.time.wait(2000)
+    pygame.quit()
+    sys.exit()
+
+# Создание групп спрайтов
+all_sprites = pygame.sprite.Group()
+platforms = pygame.sprite.Group()
+lava_group = pygame.sprite.Group()
+door_group = pygame.sprite.Group()
+enemies = pygame.sprite.Group()  # Группа для противников
+
+# Создание игрока
+player = Player()
+all_sprites.add(player)
+
+# Создание платформ
+platform_data = [
+    (WIDTH // 2 - PLATFORM_WIDTH // 2, HEIGHT - 100, PLATFORM_WIDTH),
+    (150, 500, PLATFORM_WIDTH),
+    (350, 450, PLATFORM_WIDTH),
+    (550, 400, PLATFORM_WIDTH),
+    (250, 350, PLATFORM_WIDTH),
+    (650, 300, PLATFORM_WIDTH),
+    (50, 250, PLATFORM_WIDTH),
+    (350, 200, PLATFORM_WIDTH),
+    (150, 150, PLATFORM_WIDTH),
+    (550, 100, PLATFORM_WIDTH)
+]
+
+for x, y, width in platform_data:
+    platform = Platform(x, y, width)
+    platforms.add(platform)
+    all_sprites.add(platform)
+
+# Создание лавы
+lava = Lava()
+lava_group.add(lava)
+all_sprites.add(lava)
+
+# Создание двери на самой верхней платформе
+door = Door(550 + PLATFORM_WIDTH // 2 - DOOR_WIDTH // 2, 100 - DOOR_HEIGHT)
+door_group.add(door)
+all_sprites.add(door)
+
+# Создание противников
+enemy_positions = [
+    (100, 480),
+    (400, 350),
+    (600, 200)
+]
+
+for pos in enemy_positions:
+    enemy = Enemy(pos[0], pos[1])
+    enemies.add(enemy)
+    all_sprites.add(enemy)
+
+# Главный игровой цикл
+while True:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                player.jump()
+
+    # Обновление всех спрайтов
+    all_sprites.update()
+
+    # Рендеринг
+    screen.fill(LIGHT_BLUE)
+    all_sprites.draw(screen)
+    pygame.display.flip()
+
+    # Ограничение FPS
+    clock.tick(FPS)
+
+# Изменения в коде: -----------------------------------------------------------------------------------
+
+'''
+1. Добавлен класс Enemy:
+
+Этот класс представляет противников, которые будут двигаться по горизонтали. Они рисуются как квадратные
+объекты и могут изменять направление движения при достижении края экрана.
+
+class Enemy(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = pygame.Surface((ENEMY_SIZE, ENEMY_SIZE))
+        self.image.fill(ENEMY_COLOR)
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+        self.direction = 1  # 1 для движения вправо, -1 для движения влево
+
+    def update(self):
+        # Движение противника по горизонтали
+        self.rect.x += ENEMY_SPEED * self.direction
+        if self.rect.left <= 0 or self.rect.right >= WIDTH:
+            self.direction *= -1  # Изменение направления движения при достижении границы
+
+-----------------------------------------------------------------------------------------------------------
+В конструкторе (__init__):
+
+Создается прямоугольный спрайт (self.image) размером ENEMY_SIZE x ENEMY_SIZE и заполняется цветом ENEMY_COLOR.
+Устанавливается начальная позиция противника (self.rect.x и self.rect.y).
+self.direction устанавливается в 1, что означает движение вправо.
+В методе update:
+
+Противник перемещается по горизонтали на основе ENEMY_SPEED и self.direction.
+Если противник достигает края экрана, направление (self.direction) меняется на противоположное.
+
+2. Создание группы для противников и добавление их в игру:
+
+Создается группа enemies для хранения всех противников. Эта группа будет использоваться для управления и 
+обновления всех противников одновременно.
+
+enemies = pygame.sprite.Group()  # Группа для противников
+
+Добавляются противники в игру. Каждый противник создается в позиции, указанной в enemy_positions. Они добавляются 
+в группы enemies и all_sprites, чтобы их можно было обновлять и отображать вместе с остальными спрайтами.
+
+# Создание противников
+enemy_positions = [
+    (100, 480),  # Позиция первого противника
+    (400, 350),  # Позиция второго противника
+    (600, 200)   # Позиция третьего противника
+]
+
+for pos in enemy_positions:
+    enemy = Enemy(pos[0], pos[1])
+    enemies.add(enemy)
+    all_sprites.add(enemy)
+
+3. Проверка столкновения с противниками:
+
+В методе update класса Player добавляется проверка на столкновение с противниками. Если игрок сталкивается с 
+любым противником (используя pygame.sprite.spritecollideany), вызывается функция game_over(), которая завершает игру.
+
+# Проверка столкновения с противниками
+if pygame.sprite.spritecollideany(self, enemies):
+    game_over()
+
+Этот код проверяет, пересекается ли прямоугольник игрока с любым прямоугольником противника. Если пересечения есть, 
+игра завершается.
+'''
+
+# Обновленный основной игровой цикл:
+
+'''
+Основной игровой цикл остается тем же, но теперь также обрабатываются и обновляются противники, благодаря тому, что
+они добавлены в all_sprites и обновляются в all_sprites.update().
+
+while True:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                player.jump()
+
+    # Обновление всех спрайтов, включая противников
+    all_sprites.update()
+
+    # Рендеринг
+    screen.fill(LIGHT_BLUE)
+    all_sprites.draw(screen)
+    pygame.display.flip()
+
+    # Ограничение FPS
+    clock.tick(FPS)
+
+Этот цикл выполняет следующие действия:
+
+1. Проверяет события (например, нажатие клавиш).
+2. Обновляет состояние всех спрайтов, включая противников и игрока.
+3. Отображает все спрайты на экране.
+4. Ограничивает частоту обновления экрана до 60 кадров в секунду.
+
+Теперь в игре есть три летающих противника, которые перемещаются по горизонтали. Если игрок сталкивается с одним 
+из них, игра завершается, как и в случае со столкновением с лавой.
+'''
