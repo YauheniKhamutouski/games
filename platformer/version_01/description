@@ -1,0 +1,365 @@
+'''
+Чтобы написать простой платформер на Python, мы можем использовать библиотеку pygame. 
+pygame предоставляет функции для работы с графикой, звуком и вводом пользователя, что 
+делает её идеальной для создания игр.
+
+Давайте создадим простой платформер, в котором игрок сможет передвигаться влево и вправо,
+прыгать и падать под действием гравитации. Мы добавим платформы, по которым можно будет ходить.
+'''
+
+# Установка Pygame
+
+'''
+Для начала установим библиотеку pygame. Вы можете установить её с помощью pip:
+
+pip install pygame
+'''
+
+# Код для простого платформера
+# Вот базовый код для платформера:
+
+import pygame
+import sys
+
+# Инициализация Pygame
+pygame.init()
+
+# Константы экрана
+WIDTH, HEIGHT = 800, 600
+FPS = 60
+
+# Цвета
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+GREEN = (0, 255, 0)
+
+# Параметры игрока
+PLAYER_WIDTH = 50
+PLAYER_HEIGHT = 60
+PLAYER_COLOR = (0, 0, 255)
+PLAYER_GRAVITY = 0.8
+PLAYER_JUMP_STRENGTH = 15
+PLAYER_MOVE_SPEED = 5
+
+# Параметры платформы
+PLATFORM_WIDTH = 200
+PLATFORM_HEIGHT = 20
+PLATFORM_COLOR = GREEN
+
+# Настройка экрана
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Платформер")
+clock = pygame.time.Clock()
+
+class Player(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = pygame.Surface((PLAYER_WIDTH, PLAYER_HEIGHT))
+        self.image.fill(PLAYER_COLOR)
+        self.rect = self.image.get_rect()
+        self.rect.center = (WIDTH // 2, HEIGHT // 2)
+        self.velocity_y = 0
+        self.is_jumping = False
+
+    def update(self):
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]:
+            self.rect.x -= PLAYER_MOVE_SPEED
+        if keys[pygame.K_RIGHT]:
+            self.rect.x += PLAYER_MOVE_SPEED
+
+        # Применение гравитации
+        self.velocity_y += PLAYER_GRAVITY
+        self.rect.y += self.velocity_y
+
+        # Проверка на столкновение с платформами
+        self.check_collision()
+
+        # Ограничение выхода за края экрана
+        if self.rect.left < 0:
+            self.rect.left = 0
+        if self.rect.right > WIDTH:
+            self.rect.right = WIDTH
+
+    def jump(self):
+        if not self.is_jumping:
+            self.velocity_y = -PLAYER_JUMP_STRENGTH
+            self.is_jumping = True
+
+    def check_collision(self):
+        hits = pygame.sprite.spritecollide(self, platforms, False)
+        if hits:
+            self.rect.bottom = hits[0].rect.top
+            self.velocity_y = 0
+            self.is_jumping = False
+
+class Platform(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        self.image = pygame.Surface((PLATFORM_WIDTH, PLATFORM_HEIGHT))
+        self.image.fill(PLATFORM_COLOR)
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+
+# Создание групп спрайтов
+all_sprites = pygame.sprite.Group()
+platforms = pygame.sprite.Group()
+
+# Создание игрока
+player = Player()
+all_sprites.add(player)
+
+# Создание платформ
+platform = Platform(WIDTH // 2 - PLATFORM_WIDTH // 2, HEIGHT - 100)
+platforms.add(platform)
+all_sprites.add(platform)
+
+# Главный игровой цикл
+while True:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                player.jump()
+
+    # Обновление всех спрайтов
+    all_sprites.update()
+
+    # Рендеринг
+    screen.fill(WHITE)
+    all_sprites.draw(screen)
+    pygame.display.flip()
+
+    # Ограничение FPS
+    clock.tick(FPS)
+
+# Описание кода
+'''
+1. Инициализация Pygame: Мы начинаем с инициализации Pygame и создания окна с заданными размерами.
+
+2. Цвета и Константы: Определяем несколько цветов и констант для экрана, игрока и платформ.
+
+3. Класс Player: Класс игрока, который наследует pygame.sprite.Sprite. В нём определяются изображение игрока, 
+его прямоугольник (rect) для проверки столкновений и управление движением.
+
+4. Метод update в классе Player: Этот метод обновляет положение игрока каждый кадр, проверяет столкновение 
+с платформами и не позволяет игроку выйти за пределы экрана.
+
+5. Класс Platform: Класс платформы, который тоже наследует pygame.sprite.Sprite. Он создаёт платформу 
+заданного размера и цвета.
+
+6. Создание объектов: Создаются объекты игрока и платформы, которые добавляются в группы спрайтов.
+
+7. Игровой цикл: Основной цикл игры, который обрабатывает события (например, нажатие клавиш), обновляет 
+состояние игры, перерисовывает экран и ограничивает количество кадров в секунду (FPS).
+'''
+
+# Запуск игры
+
+'''
+Чтобы запустить игру, просто сохраните код в файл, например platformer.py, и выполните его с помощью Python:
+
+python platformer.py
+
+Вы сможете управлять персонажем стрелками влево и вправо, а пробелом прыгать. Платформы остановят падение игрока.
+Этот базовый код можно расширять, добавляя больше платформ, улучшая физику, добавляя врагов и другие элементы игры.
+'''
+
+# Полный разбор кода --------------------------------------------------------------------------------------------------
+
+'''
+Давайте подробно разберём каждую строчку кода, чтобы понять, как работает простой платформер на Python с использованием
+pygame. Я разделю код на секции и объясню, что делает каждая строчка.
+'''
+
+# Инициализация и настройки игры
+
+'''
+# import pygame
+# import sys
+
+import pygame: Импортирует библиотеку pygame, которая содержит функции и классы для создания игр.
+import sys: Импортирует модуль sys, который предоставляет доступ к системным функциям и параметрам Python. Мы используем 
+его для выхода из игры.
+'''
+
+# Инициализация Pygame
+
+'''
+# pygame.init()
+
+pygame.init(): Инициализирует все модули Pygame, которые нужны для работы (например, графика и звук).
+'''
+
+# Константы экрана и цвета 
+
+# Константы экрана
+
+'''
+# WIDTH, HEIGHT = 800, 600
+# FPS = 60
+
+WIDTH, HEIGHT = 800, 600: Определяет размеры окна игры: ширину (800 пикселей) и высоту (600 пикселей).
+FPS = 60: Задает частоту кадров в секунду (Frames Per Second). Это определяет, насколько быстро игра будет обновляться. 
+Значение 60 обеспечивает плавное движение.
+'''
+
+# Цвета
+# WHITE = (255, 255, 255)
+# BLACK = (0, 0, 0)
+# GREEN = (0, 255, 0)
+
+'''
+WHITE = (255, 255, 255): Определяет белый цвет в формате RGB (Red, Green, Blue), где все компоненты максимальны.
+BLACK = (0, 0, 0): Определяет черный цвет (все компоненты равны 0).
+GREEN = (0, 255, 0): Определяет зеленый цвет (максимальное значение для зеленого компонента).
+'''
+
+# Параметры игрока и платформы
+
+# Параметры игрока
+# PLAYER_WIDTH = 50
+# PLAYER_HEIGHT = 60
+# PLAYER_COLOR = (0, 0, 255)
+# PLAYER_GRAVITY = 0.8
+# PLAYER_JUMP_STRENGTH = 15
+# PLAYER_MOVE_SPEED = 5
+
+'''
+PLAYER_WIDTH = 50: Определяет ширину прямоугольника игрока в пикселях.
+PLAYER_HEIGHT = 60: Определяет высоту прямоугольника игрока в пикселях.
+PLAYER_COLOR = (0, 0, 255): Определяет цвет игрока (синий) в формате RGB.
+PLAYER_GRAVITY = 0.8: Определяет силу гравитации, которая будет влиять на игрока. Чем больше значение, тем сильнее гравитация.
+PLAYER_JUMP_STRENGTH = 15: Определяет силу прыжка игрока. Чем больше значение, тем выше прыжок.
+PLAYER_MOVE_SPEED = 5: Определяет скорость движения игрока в пикселях за один кадр.
+'''
+
+# Параметры платформы
+# PLATFORM_WIDTH = 200
+# PLATFORM_HEIGHT = 20
+# PLATFORM_COLOR = GREEN
+
+'''
+PLATFORM_WIDTH = 200: Определяет ширину платформы в пикселях.
+PLATFORM_HEIGHT = 20: Определяет высоту платформы в пикселях.
+PLATFORM_COLOR = GREEN: Определяет цвет платформы (зелёный).
+'''
+
+# Настройка экрана и создание игровых объектов
+
+# Настройка экрана
+# screen = pygame.display.set_mode((WIDTH, HEIGHT))
+# pygame.display.set_caption("Платформер")
+# clock = pygame.time.Clock()
+
+'''
+screen = pygame.display.set_mode((WIDTH, HEIGHT)): Создаёт окно игры с заданной шириной и высотой.
+pygame.display.set_caption("Платформер"): Устанавливает заголовок окна на "Платформер".
+clock = pygame.time.Clock(): Создает объект Clock, который используется для контроля времени и ограничения частоты кадров.
+'''
+
+# Класс игрока
+'''
+class Player(pygame.sprite.Sprite):
+    def __init__(self):
+        super().__init__()
+        self.image = pygame.Surface((PLAYER_WIDTH, PLAYER_HEIGHT))
+        self.image.fill(PLAYER_COLOR)
+        self.rect = self.image.get_rect()
+        self.rect.center = (WIDTH // 2, HEIGHT // 2)
+        self.velocity_y = 0
+        self.is_jumping = False
+'''
+
+# Описание для класса выше 
+
+'''
+class Player(pygame.sprite.Sprite):: Создает класс Player, который наследует свойства от pygame.sprite.Sprite. Это позволяет
+ легко управлять спрайтом игрока и взаимодействовать с другими объектами.
+def __init__(self):: Конструктор класса Player, который вызывается при создании объекта игрока.
+super().__init__(): Инициализирует родительский класс pygame.sprite.Sprite.
+self.image = pygame.Surface((PLAYER_WIDTH, PLAYER_HEIGHT)): Создает поверхность (прямоугольник), которая будет представлять игрока.
+self.image.fill(PLAYER_COLOR): Заполняет поверхность цветом игрока.
+self.rect = self.image.get_rect(): Создает объект Rect (прямоугольник), который используется для определения положения и 
+столкновений игрока.
+self.rect.center = (WIDTH // 2, HEIGHT // 2): Устанавливает начальную позицию игрока в центре экрана.
+self.velocity_y = 0: Определяет начальную вертикальную скорость игрока (используется для гравитации и прыжков).
+self.is_jumping = False: Флаг, который указывает, прыгает ли игрок в данный момент.
+'''
+
+# Метод обновления игрока
+
+'''
+    def update(self):
+        keys = pygame.key.get_pressed()
+        if keys[pygame.K_LEFT]:
+            self.rect.x -= PLAYER_MOVE_SPEED
+        if keys[pygame.K_RIGHT]:
+            self.rect.x += PLAYER_MOVE_SPEED
+
+'''
+
+# Описание метода обновление игрока
+
+'''
+def update(self):: Метод update вызывается каждый кадр, чтобы обновить состояние игрока (положение, скорость и т.д.).
+keys = pygame.key.get_pressed(): Получает текущее состояние всех клавиш на клавиатуре.
+if keys[pygame.K_LEFT]:: Проверяет, нажата ли клавиша стрелки влево.
+self.rect.x -= PLAYER_MOVE_SPEED: Если клавиша влево нажата, перемещает игрока влево на PLAYER_MOVE_SPEED пикселей.
+if keys[pygame.K_RIGHT]:: Проверяет, нажата ли клавиша стрелки вправо.
+self.rect.x += PLAYER_MOVE_SPEED: Если клавиша вправо нажата, перемещает игрока вправо на PLAYER_MOVE_SPEED пикселей.
+'''
+
+# Применение гравитации и проверка столкновений
+'''
+        # Применение гравитации
+        self.velocity_y += PLAYER_GRAVITY
+        self.rect.y += self.velocity_y
+
+        # Проверка на столкновение с платформами
+        self.check_collision()
+'''
+
+'''
+self.velocity_y += PLAYER_GRAVITY: Увеличивает вертикальную скорость игрока под действием гравитации.
+self.rect.y += self.velocity_y: Перемещает игрока вниз в зависимости от его вертикальной скорости.
+self.check_collision(): Вызывает метод check_collision для проверки столкновений игрока с платформами.
+'''
+
+# Ограничение выхода за края экрана
+
+'''
+        # Ограничение выхода за края экрана
+        if self.rect.left < 0:
+            self.rect.left = 0
+        if self.rect.right > WIDTH:
+            self.rect.right = WIDTH
+
+'''
+
+'''
+if self.rect.left < 0:: Проверяет, выходит ли игрок за левую границу экрана.
+self.rect.left = 0: Если выходит, устанавливает его позицию на границу экрана.
+if self.rect.right > WIDTH:: Проверяет, выходит ли игрок за правую границу экрана.
+self.rect.right = WIDTH: Если выходит, устанавливает его позицию на правую границу экрана.
+'''
+
+# Метод прыжка
+
+'''
+    def jump(self):
+        if not self.is_jumping:
+            self.velocity_y = -PLAYER_JUMP_STRENGTH
+            self.is_jumping = True
+
+'''
+
+'''
+def jump(self):: Метод для прыжка игрока.
+if not self.is_jumping:: Проверяет, находится ли игрок в прыжке. Если нет, позволяет прыгнуть.
+self.velocity_y = -PLAYER_JUMP_STRENGTH: Устанавливает вертикальную скорость игрока на отрицательную, чтобы он прыгнул вверх.
+**`self.is_jumping = True
+'''
